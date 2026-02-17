@@ -394,8 +394,6 @@
   border-radius: var(--radius-lg);
   cursor: pointer;
   transition: all var(--transition-smooth);
-  animation: fadeInUp 0.4s ease both;
-  animation-delay: calc(var(--i, 0) * 0.05s);
   border: 2px solid transparent;
   position: relative;
   -webkit-tap-highlight-color: transparent;
@@ -509,6 +507,55 @@
 
 .activity-card.is-done .activity-card-status {
   color: var(--color-success);
+}
+
+/* Activity Card Wrapper (for note expansion) */
+.activity-card-wrapper {
+  animation: fadeInUp 0.4s ease both;
+  animation-delay: calc(var(--i, 0) * 0.05s);
+}
+
+/* Note Input (for Tadarus) */
+.activity-note {
+  margin-top: var(--spacing-xs);
+  margin-left: calc(32px + var(--spacing-md));
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--gradient-card-gold);
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+  border: 2px solid var(--color-secondary-light);
+  border-top: none;
+  animation: fadeInUp 0.3s ease;
+}
+
+.activity-note-label {
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  color: var(--color-text-light);
+  margin-bottom: var(--spacing-xs);
+}
+
+.activity-note-input {
+  width: 100%;
+  padding: var(--spacing-sm) var(--spacing-md);
+  border: 2px solid var(--color-bg-dark);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  font-family: var(--font-family-base);
+  color: var(--color-text);
+  background: white;
+  transition: all var(--transition-base);
+  outline: none;
+}
+
+.activity-note-input:focus {
+  border-color: var(--color-secondary);
+  box-shadow: 0 0 0 3px rgba(244, 166, 35, 0.15);
+}
+
+.activity-note-input::placeholder {
+  color: #bbb;
+  font-weight: 600;
 }
 
 /* Celebration Message */

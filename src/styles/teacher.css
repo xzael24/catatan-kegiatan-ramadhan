@@ -349,6 +349,20 @@
   color: var(--color-text-light);
 }
 
+/* Tadarus note in table */
+.tadarus-note {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-light);
+  font-style: italic;
+  margin-top: 2px;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-left: auto;
+  margin-right: auto;
+}
+
 /* ---- Mobile Card View (replaces table on small screens) ---- */
 .student-cards-mobile {
   display: none;

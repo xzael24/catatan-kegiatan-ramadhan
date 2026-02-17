@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
-import { db } from '../services/db';
+import { db, activitiesCol, studentsCol } from '../services/firebase';
+import { getDocs, query, where, onSnapshot } from 'firebase/firestore';
 import { Link } from 'react-router-dom';
 import '../styles/teacher.css';
 
@@ -8,23 +9,41 @@ export default function TeacherView() {
   const [activities, setActivities] = useState([]);
   const [date, setDate] = useState(new Date().toLocaleDateString('en-CA'));
   const [filterClass, setFilterClass] = useState('all');
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadData();
-  }, [date]);
+    async function loadStudents() {
+      const snapshot = await getDocs(studentsCol);
+      const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setStudents(list);
+    }
+    loadStudents();
+  }, []);
 
-  async function loadData() {
-    const s = await db.students.toArray();
-    const a = await db.activities.where({ date }).toArray();
-    setStudents(s);
-    setActivities(a);
-  }
+  useEffect(() => {
+    setLoading(true);
+    // Realtime listener for activities on selected date
+    const q = query(activitiesCol, where('date', '==', date));
+    
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setActivities(list);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [date]);
 
   const prayers = ['sholat_subuh', 'sholat_zuhur', 'sholat_ashar', 'sholat_maghrib', 'sholat_isya'];
 
   const getStatus = (studentId, type) => {
     const act = activities.find(a => a.studentId === studentId && a.type === type);
     return act?.status === 'done';
+  };
+
+  const getNote = (studentId, type) => {
+    const act = activities.find(a => a.studentId === studentId && a.type === type);
+    return act?.note || '';
   };
 
   const getPrayerCount = (studentId) => {
@@ -41,8 +60,12 @@ export default function TeacherView() {
 
   // Filter students by class
   const filteredStudents = useMemo(() => {
-    if (filterClass === 'all') return students;
-    return students.filter(s => s.class === filterClass);
+    let list = students;
+    if (filterClass !== 'all') {
+      list = list.filter(s => s.class === filterClass);
+    }
+    // Sort by name
+    return list.sort((a, b) => a.name.localeCompare(b.name));
   }, [students, filterClass]);
 
   // Stats
@@ -125,8 +148,15 @@ export default function TeacherView() {
           ))}
         </div>
 
+        {/* Loading State */}
+        {loading && (
+          <div style={{ textAlign: 'center', padding: '20px', color: '#666' }}>
+            🔄 Memuat data realtime...
+          </div>
+        )}
+
         {/* Desktop Table View */}
-        {filteredStudents.length > 0 ? (
+        {!loading && filteredStudents.length > 0 ? (
           <>
             <div className="student-table-wrapper">
               <table className="student-table">
@@ -136,8 +166,8 @@ export default function TeacherView() {
                     <th>Kelas</th>
                     <th>Puasa</th>
                     <th>Sholat</th>
-                    <th>Tarawih</th>
                     <th>Tadarus</th>
+                    <th>Tarawih</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -168,13 +198,18 @@ export default function TeacherView() {
                           </span>
                         </td>
                         <td>
-                          {getStatus(s.id, 'sholat_tarawih')
-                            ? <span className="status-done">✅</span>
+                          {getStatus(s.id, 'tadarus')
+                            ? <>
+                                <span className="status-done">✅</span>
+                                {getNote(s.id, 'tadarus') && (
+                                  <div className="tadarus-note">{getNote(s.id, 'tadarus')}</div>
+                                )}
+                              </>
                             : <span className="status-empty">—</span>
                           }
                         </td>
                         <td>
-                          {getStatus(s.id, 'tadarus')
+                          {getStatus(s.id, 'sholat_tarawih')
                             ? <span className="status-done">✅</span>
                             : <span className="status-empty">—</span>
                           }
@@ -217,17 +252,25 @@ export default function TeacherView() {
                         </span>
                       </div>
                       <div className="mobile-stat-item">
-                        <span className="mobile-stat-label">✨ Tarawih</span>
-                        <span className="mobile-stat-value">
-                          {getStatus(s.id, 'sholat_tarawih') ? '✅' : '—'}
-                        </span>
-                      </div>
-                      <div className="mobile-stat-item">
                         <span className="mobile-stat-label">📖 Tadarus</span>
                         <span className="mobile-stat-value">
                           {getStatus(s.id, 'tadarus') ? '✅' : '—'}
                         </span>
                       </div>
+                      <div className="mobile-stat-item">
+                        <span className="mobile-stat-label">✨ Tarawih</span>
+                        <span className="mobile-stat-value">
+                          {getStatus(s.id, 'sholat_tarawih') ? '✅' : '—'}
+                        </span>
+                      </div>
+                      {getNote(s.id, 'tadarus') && (
+                        <div className="mobile-stat-item" style={{ gridColumn: '1 / -1' }}>
+                          <span className="mobile-stat-label">📝 Catatan</span>
+                          <span className="mobile-stat-value" style={{ fontSize: 'var(--font-size-xs)', fontWeight: 600, color: 'var(--color-text-light)' }}>
+                            {getNote(s.id, 'tadarus')}
+                          </span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 );
@@ -235,10 +278,12 @@ export default function TeacherView() {
             </div>
           </>
         ) : (
-          <div className="empty-state">
-            <span className="empty-state-icon">📋</span>
-            <div className="empty-state-text">Belum ada data siswa</div>
-          </div>
+          !loading && (
+            <div className="empty-state">
+              <span className="empty-state-icon">📋</span>
+              <div className="empty-state-text">Belum ada data siswa</div>
+            </div>
+          )
         )}
       </div>
     </div>
