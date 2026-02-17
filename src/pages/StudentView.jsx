@@ -34,7 +34,7 @@ export default function StudentView() {
       {/* Main Content */}
       <div className="student-content">
         {studentId ? (
-          <StudentActivityList studentId={parseInt(studentId)} onLogout={handleLogout} />
+          <StudentActivityList studentId={studentId} onLogout={handleLogout} />
         ) : (
           <StudentSelector onSelect={handleSelect} />
         )}
