@@ -1,0 +1,539 @@
+/* ========================================
+   TEACHER VIEW — Premium Guru Dashboard
+   ======================================== */
+
+/* ---- Dashboard Page Wrapper ---- */
+.teacher-page {
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: var(--color-bg);
+  overflow-x: hidden;
+}
+
+/* ---- Dashboard Header ---- */
+.teacher-header {
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 40%, #0f3460 100%);
+  padding: var(--spacing-lg) var(--spacing-md);
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+  border-radius: 0 0 var(--radius-xl) var(--radius-xl);
+  box-shadow: 0 8px 32px rgba(15, 52, 96, 0.3);
+  animation: slideDown 0.5s ease;
+}
+
+.teacher-header::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(circle at 30% 50%, rgba(29, 191, 160, 0.1) 0%, transparent 50%),
+              radial-gradient(circle at 70% 50%, rgba(244, 166, 35, 0.08) 0%, transparent 50%);
+  animation: floatSlow 8s ease-in-out infinite;
+}
+
+.teacher-header-content {
+  position: relative;
+  z-index: 1;
+}
+
+.teacher-header-icon {
+  font-size: clamp(2rem, 6vw, 2.8rem);
+  display: block;
+  margin-bottom: var(--spacing-xs);
+}
+
+.teacher-header-title {
+  font-family: var(--font-family-heading);
+  font-size: var(--font-size-2xl);
+  font-weight: 800;
+  color: white;
+  letter-spacing: -0.02em;
+}
+
+.teacher-header-subtitle {
+  font-size: var(--font-size-sm);
+  color: rgba(255, 255, 255, 0.7);
+  margin-top: var(--spacing-xs);
+  font-weight: 600;
+}
+
+/* ---- Dashboard Content ---- */
+.teacher-content {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: var(--spacing-md);
+  padding-bottom: var(--spacing-2xl);
+}
+
+/* ---- Date Picker Section ---- */
+.date-picker-section {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-lg);
+  animation: fadeInUp 0.4s ease 0.1s both;
+}
+
+.date-picker-label {
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  color: var(--color-text-light);
+}
+
+.date-picker-input {
+  padding: var(--spacing-sm) var(--spacing-md);
+  border: 2px solid var(--color-bg-dark);
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  color: var(--color-text);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-sm);
+  transition: all var(--transition-base);
+  outline: none;
+  cursor: pointer;
+}
+
+.date-picker-input:focus {
+  border-color: var(--color-primary-light);
+  box-shadow: var(--shadow-glow);
+}
+
+/* ---- Stats Summary Cards ---- */
+.stats-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-lg);
+  animation: fadeInUp 0.4s ease 0.2s both;
+}
+
+.stat-card {
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-md);
+  text-align: center;
+  box-shadow: var(--shadow-card);
+  position: relative;
+  overflow: hidden;
+  transition: transform var(--transition-smooth);
+}
+
+.stat-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+}
+
+.stat-card--students::before { background: var(--gradient-header); }
+.stat-card--active::before { background: var(--gradient-gold); }
+.stat-card--completion::before { background: var(--gradient-celebration); }
+
+.stat-card:hover {
+  transform: translateY(-2px);
+}
+
+.stat-card-value {
+  font-family: var(--font-family-heading);
+  font-size: var(--font-size-xl);
+  font-weight: 800;
+  color: var(--color-primary);
+  line-height: 1.2;
+}
+
+.stat-card--active .stat-card-value {
+  color: var(--color-secondary);
+}
+
+.stat-card--completion .stat-card-value {
+  color: var(--color-accent-alt);
+}
+
+.stat-card-label {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-light);
+  margin-top: 2px;
+  font-weight: 600;
+}
+
+/* ---- Filter / Class Tabs ---- */
+.class-filter {
+  display: flex;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-md);
+  animation: fadeInUp 0.4s ease 0.25s both;
+  flex-wrap: wrap;
+}
+
+.class-tab {
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  background: var(--color-surface);
+  color: var(--color-text-light);
+  border: 1.5px solid var(--color-bg-dark);
+  transition: all var(--transition-base);
+  cursor: pointer;
+}
+
+.class-tab:hover {
+  border-color: var(--color-primary-light);
+  color: var(--color-primary);
+}
+
+.class-tab.active {
+  background: var(--color-primary);
+  color: white;
+  border-color: var(--color-primary);
+  box-shadow: 0 2px 8px rgba(13, 124, 74, 0.3);
+}
+
+/* ---- Student Table (Desktop) ---- */
+.student-table-wrapper {
+  animation: fadeInUp 0.4s ease 0.3s both;
+}
+
+.student-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: var(--shadow-card);
+}
+
+.student-table thead {
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+}
+
+.student-table th {
+  padding: var(--spacing-md) var(--spacing-sm);
+  font-size: var(--font-size-xs);
+  font-weight: 800;
+  color: var(--color-text-light);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  text-align: center;
+  border-bottom: 2px solid var(--color-bg-dark);
+  white-space: nowrap;
+}
+
+.student-table th:first-child {
+  text-align: left;
+  padding-left: var(--spacing-md);
+}
+
+.student-table td {
+  padding: var(--spacing-sm) var(--spacing-sm);
+  text-align: center;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  border-bottom: 1px solid var(--color-bg);
+  vertical-align: middle;
+  transition: background var(--transition-fast);
+}
+
+.student-table td:first-child {
+  text-align: left;
+  padding-left: var(--spacing-md);
+}
+
+.student-table tbody tr {
+  transition: background var(--transition-fast);
+}
+
+.student-table tbody tr:hover {
+  background: rgba(29, 191, 160, 0.04);
+}
+
+.student-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* Student name cell with avatar */
+.table-student-info {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.table-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-full);
+  background: var(--gradient-header);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: var(--font-size-xs);
+  font-weight: 800;
+  flex-shrink: 0;
+}
+
+.table-student-name {
+  font-weight: 700;
+  color: var(--color-text);
+  white-space: nowrap;
+}
+
+/* Status indicators */
+.status-done {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-full);
+  background: var(--color-success-light);
+  font-size: 0.85rem;
+}
+
+.status-empty {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-full);
+  background: var(--color-bg);
+  color: #ccc;
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+
+/* Prayer count pill */
+.prayer-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 12px;
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-xs);
+  font-weight: 800;
+  min-width: 48px;
+}
+
+.prayer-count--full {
+  background: var(--color-success-light);
+  color: var(--color-success);
+}
+
+.prayer-count--partial {
+  background: #FFF3E0;
+  color: #F57C00;
+}
+
+.prayer-count--none {
+  background: var(--color-bg);
+  color: #ccc;
+}
+
+/* Class badge in table */
+.table-class-badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  background: var(--color-bg);
+  color: var(--color-text-light);
+}
+
+/* ---- Mobile Card View (replaces table on small screens) ---- */
+.student-cards-mobile {
+  display: none;
+  flex-direction: column;
+  gap: var(--spacing-md);
+  animation: fadeInUp 0.4s ease 0.3s both;
+}
+
+.mobile-student-card {
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-md);
+  box-shadow: var(--shadow-card);
+  animation: fadeInUp 0.4s ease both;
+  animation-delay: calc(var(--i, 0) * 0.03s);
+}
+
+.mobile-card-header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-sm);
+  padding-bottom: var(--spacing-sm);
+  border-bottom: 1px solid var(--color-bg);
+}
+
+.mobile-card-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-full);
+  background: var(--gradient-header);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: var(--font-size-sm);
+  font-weight: 800;
+  flex-shrink: 0;
+}
+
+.mobile-card-name {
+  font-weight: 700;
+  font-size: var(--font-size-base);
+  color: var(--color-text);
+}
+
+.mobile-card-class {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-light);
+}
+
+.mobile-card-stats {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--spacing-sm);
+}
+
+.mobile-stat-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  background: var(--color-bg);
+  border-radius: var(--radius-sm);
+}
+
+.mobile-stat-label {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-light);
+  font-weight: 600;
+}
+
+.mobile-stat-value {
+  font-size: var(--font-size-sm);
+  font-weight: 800;
+}
+
+/* ---- Empty State ---- */
+.empty-state {
+  text-align: center;
+  padding: var(--spacing-2xl) var(--spacing-lg);
+  color: var(--color-text-light);
+  animation: fadeInUp 0.4s ease;
+}
+
+.empty-state-icon {
+  font-size: clamp(2.5rem, 8vw, 3.5rem);
+  display: block;
+  margin-bottom: var(--spacing-md);
+  opacity: 0.5;
+}
+
+.empty-state-text {
+  font-size: var(--font-size-md);
+  font-weight: 700;
+}
+
+/* ---- Back Link ---- */
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  background: rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.8);
+  text-decoration: none;
+  transition: all var(--transition-base);
+  position: relative;
+  z-index: 1;
+  margin-bottom: var(--spacing-sm);
+  cursor: pointer;
+  border: none;
+}
+
+.back-link:hover {
+  background: rgba(255, 255, 255, 0.25);
+  color: white;
+}
+
+/* ---- Responsive ---- */
+
+/* Mobile: Show cards, hide table */
+@media (max-width: 639px) {
+  .student-table-wrapper {
+    display: none;
+  }
+  .student-cards-mobile {
+    display: flex;
+  }
+  .stats-row {
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--spacing-xs);
+  }
+  .stat-card {
+    padding: var(--spacing-sm);
+  }
+  .stat-card-value {
+    font-size: var(--font-size-lg);
+  }
+  .teacher-content {
+    padding: var(--spacing-sm);
+  }
+}
+
+@media (max-width: 359px) {
+  .mobile-card-stats {
+    grid-template-columns: 1fr;
+  }
+  .stats-row {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+}
+
+/* Tablets and up */
+@media (min-width: 640px) {
+  .teacher-content {
+    padding: var(--spacing-lg);
+  }
+  .teacher-header {
+    padding: var(--spacing-xl) var(--spacing-lg);
+  }
+}
+
+/* Large desktop */
+@media (min-width: 1024px) {
+  .teacher-content {
+    max-width: 960px;
+  }
+}
+
+/* Landscape phones */
+@media (max-height: 500px) and (orientation: landscape) {
+  .teacher-header {
+    padding: var(--spacing-md);
+  }
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .teacher-page *, .teacher-page *::before, .teacher-page *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
