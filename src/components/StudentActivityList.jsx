@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { db, activitiesCol, studentsCol, logActivity } from '../services/firebase';
 import { getDoc, doc, addDoc, updateDoc, query, where, getDocs, onSnapshot } from 'firebase/firestore';
 import '../styles/student.css';
@@ -8,6 +8,9 @@ export default function StudentActivityList({ studentId, onLogout }) {
   const [studentName, setStudentName] = useState('');
   const today = new Date().toLocaleDateString('en-CA');
   const [loading, setLoading] = useState(true);
+  const [tadarusDraft, setTadarusDraft] = useState('');
+  const [tadarusDirty, setTadarusDirty] = useState(false);
+  const tadarusSaveTimerRef = useRef(null);
 
   useEffect(() => {
     // Listen for realtime updates
@@ -34,6 +37,64 @@ export default function StudentActivityList({ studentId, onLogout }) {
     return () => unsubscribe();
   }, [studentId, today]);
 
+  useEffect(() => {
+    // Sync draft dari Firestore kalau user tidak sedang mengetik
+    const tadarusActivity = activities.find(a => a.type === 'tadarus');
+    const remoteNote = tadarusActivity?.note || '';
+    if (!tadarusDirty) setTadarusDraft(remoteNote);
+  }, [activities, tadarusDirty]);
+
+  useEffect(() => {
+    // Cleanup timer saat unmount / ganti siswa
+    return () => {
+      if (tadarusSaveTimerRef.current) {
+        clearTimeout(tadarusSaveTimerRef.current);
+        tadarusSaveTimerRef.current = null;
+      }
+    };
+  }, [studentId]);
+
+  async function flushSaveTadarusNote(nextNote) {
+    const existing = activities.find(a => a.type === 'tadarus');
+    if (!existing) return;
+
+    const oldNote = existing.note || '';
+    if (oldNote === nextNote) {
+      setTadarusDirty(false);
+      return;
+    }
+
+    try {
+      const activityRef = doc(db, 'activities', existing.id);
+      await updateDoc(activityRef, { note: nextNote });
+
+      await logActivity('update_note', {
+        type: 'student',
+        id: studentId,
+        name: studentName
+      }, {
+        activityId: existing.id,
+        activityType: 'tadarus',
+        oldNote,
+        newNote: nextNote,
+        date: today
+      });
+
+      setTadarusDirty(false);
+    } catch (error) {
+      // Jangan overwrite draft kalau gagal save (biar ketikan user aman)
+      console.error('Error saving tadarus note:', error);
+    }
+  }
+
+  function scheduleSaveTadarusNote(nextNote) {
+    if (tadarusSaveTimerRef.current) clearTimeout(tadarusSaveTimerRef.current);
+    tadarusSaveTimerRef.current = setTimeout(() => {
+      tadarusSaveTimerRef.current = null;
+      flushSaveTadarusNote(nextNote);
+    }, 600);
+  }
+
   async function toggleActivity(type) {
     const existing = activities.find(a => a.type === type);
     try {
@@ -57,6 +118,16 @@ export default function StudentActivityList({ studentId, onLogout }) {
           newStatus,
           date: today
         });
+
+        // Kalau tadarus dimatikan, reset draft biar tidak glitch
+        if (type === 'tadarus' && newStatus === 'pending') {
+          if (tadarusSaveTimerRef.current) {
+            clearTimeout(tadarusSaveTimerRef.current);
+            tadarusSaveTimerRef.current = null;
+          }
+          setTadarusDraft('');
+          setTadarusDirty(false);
+        }
       } else {
         const docRef = await addDoc(activitiesCol, {
           studentId,
@@ -77,34 +148,14 @@ export default function StudentActivityList({ studentId, onLogout }) {
           date: today,
           action: 'created'
         });
+
+        if (type === 'tadarus') {
+          setTadarusDraft('');
+          setTadarusDirty(false);
+        }
       }
     } catch (error) {
       console.error("Error toggling activity:", error);
-    }
-  }
-
-  async function updateNote(type, note) {
-    const existing = activities.find(a => a.type === type);
-    if (existing) {
-      const oldNote = existing.note || '';
-      // Debounce could be added here, but for simplicity direct update
-      const activityRef = doc(db, 'activities', existing.id);
-      await updateDoc(activityRef, { note });
-      
-      // Log hanya jika note berubah (untuk menghindari spam)
-      if (oldNote !== note) {
-        await logActivity('update_note', { 
-          type: 'student', 
-          id: studentId, 
-          name: studentName 
-        }, {
-          activityId: existing.id,
-          activityType: type,
-          oldNote,
-          newNote: note,
-          date: today
-        });
-      }
     }
   }
 
@@ -215,8 +266,20 @@ export default function StudentActivityList({ studentId, onLogout }) {
                     type="text"
                     className="activity-note-input"
                     placeholder="Tulis surah / juz / halaman yang dibaca..."
-                    value={activity?.note || ''}
-                    onChange={e => updateNote(task.id, e.target.value)}
+                    value={tadarusDraft}
+                    onChange={(e) => {
+                      const next = e.target.value;
+                      setTadarusDraft(next);
+                      setTadarusDirty(true);
+                      scheduleSaveTadarusNote(next);
+                    }}
+                    onBlur={() => {
+                      if (tadarusSaveTimerRef.current) {
+                        clearTimeout(tadarusSaveTimerRef.current);
+                        tadarusSaveTimerRef.current = null;
+                      }
+                      flushSaveTadarusNote(tadarusDraft);
+                    }}
                     onClick={e => e.stopPropagation()}
                   />
                 </div>
