@@ -3,15 +3,15 @@ import { initializeApp } from "firebase/app";
 import { getFirestore, collection, getDocs, doc, setDoc, query, enableIndexedDbPersistence } from "firebase/firestore";
 import { getAnalytics } from "firebase/analytics";
 
-// TODO: Replace with your project's config object from Firebase Console settings
+// Firebase configuration from environment variables
 const firebaseConfig = {
-  apiKey: "AIzaSyAry6NoMU9_35DAkMzG4tCjC2-o0MvO87c",
-  authDomain: "ramadhanapp-notes.firebaseapp.com",
-  projectId: "ramadhanapp-notes",
-  storageBucket: "ramadhanapp-notes.firebasestorage.app",
-  messagingSenderId: "190785808654",
-  appId: "1:190785808654:web:9c2cd78d2e665c56268f5f",
-  measurementId: "G-FW2HL3W76Y"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
 };
 
 // Initialize Firebase

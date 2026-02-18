@@ -5,12 +5,12 @@ import { getDocs, query, orderBy } from 'firebase/firestore';
 export default function StudentSelector({ onSelect }) {
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedClass, setSelectedClass] = useState('');
 
   useEffect(() => {
     async function loadStudents() {
       try {
-        // Try seeding if empty (runs only once per device/browser ideally, 
-        // but seed function handles check)
         await seedInitialData();
 
         const q = query(studentsCol, orderBy('name'));
@@ -29,6 +29,15 @@ export default function StudentSelector({ onSelect }) {
     loadStudents();
   }, []);
 
+  // Compute unique classes and filter students
+  const uniqueClasses = [...new Set(students.map(s => s.class))].sort();
+  
+  const filteredStudents = students.filter(student => {
+    const matchesSearch = student.name.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesClass = selectedClass === '' || student.class === selectedClass;
+    return matchesSearch && matchesClass;
+  });
+
   const getInitial = (name) => name?.charAt(0).toUpperCase() || '?';
 
   if (loading) {
@@ -45,23 +54,55 @@ export default function StudentSelector({ onSelect }) {
       <h2 className="selector-title">👋 Siapa Namamu?</h2>
       <p className="selector-subtitle">Pilih nama kamu untuk mulai</p>
 
+      {/* Filter & Search Controls */}
+      <div className="selector-controls">
+        <div className="search-input-wrapper">
+          <span className="search-icon">🔍</span>
+          <input 
+            type="text" 
+            className="search-input"
+            placeholder="Cari nama kamu..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+        </div>
+        
+        <select 
+          className="class-filter-select"
+          value={selectedClass}
+          onChange={(e) => setSelectedClass(e.target.value)}
+        >
+          <option value="">Semua Kelas</option>
+          {uniqueClasses.map(cls => (
+            <option key={cls} value={cls}>Kelas {cls}</option>
+          ))}
+        </select>
+      </div>
+
       <div className="selector-grid">
-        {students.map((student, index) => (
-          <button
-            key={student.id}
-            className="student-card"
-            style={{ '--i': index }}
-            onClick={() => onSelect(student.id)}
-          >
-            <div className="student-avatar">
-              {getInitial(student.name)}
-            </div>
-            <div className="student-card-info">
-              <div className="student-card-name">{student.name}</div>
-              <span className="student-card-class">Kelas {student.class}</span>
-            </div>
-          </button>
-        ))}
+        {filteredStudents.length > 0 ? (
+          filteredStudents.map((student, index) => (
+            <button
+              key={student.id}
+              className="student-card"
+              style={{ '--i': index }}
+              onClick={() => onSelect(student.id)}
+            >
+              <div className="student-avatar">
+                {getInitial(student.name)}
+              </div>
+              <div className="student-card-info">
+                <div className="student-card-name">{student.name}</div>
+                <span className="student-card-class">Kelas {student.class}</span>
+              </div>
+            </button>
+          ))
+        ) : (
+          <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: '40px', color: 'var(--color-text-light)' }}>
+            <div style={{ fontSize: '2rem', marginBottom: '10px' }}>😔</div>
+            <div>Maaf, nama tidak ditemukan</div>
+          </div>
+        )}
       </div>
     </div>
   );

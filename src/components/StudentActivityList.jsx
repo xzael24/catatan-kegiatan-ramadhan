@@ -119,7 +119,7 @@ export default function StudentActivityList({ studentId, onLogout }) {
           <div className="activity-date">📅 {formattedDate}</div>
         </div>
         <button className="btn-switch" onClick={onLogout}>
-          Ganti 🔄
+          Ganti Nama 🔄
         </button>
       </div>
 
