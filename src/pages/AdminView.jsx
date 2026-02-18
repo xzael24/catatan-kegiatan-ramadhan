@@ -663,6 +663,7 @@ export default function AdminView() {
                 >
                   <option value="all">Semua</option>
                   <option value="student">Siswa</option>
+                  <option value="guru">Guru</option>
                   <option value="admin">Admin</option>
                 </select>
               </div>
@@ -680,6 +681,8 @@ export default function AdminView() {
                   <option value="delete_student">Hapus Siswa</option>
                   <option value="toggle_activity">Toggle Aktivitas</option>
                   <option value="update_note">Update Catatan</option>
+                  <option value="export_data">Export Data</option>
+                  <option value="import_data">Import Data</option>
                   <option value="clear_activities">Hapus Semua Aktivitas</option>
                   <option value="reset_all">Reset Database</option>
                 </select>
@@ -695,6 +698,8 @@ export default function AdminView() {
                   'delete_student': '🗑️ Hapus Siswa',
                   'toggle_activity': '✅ Toggle Aktivitas',
                   'update_note': '📝 Update Catatan',
+                  'export_data': '📥 Export Data',
+                  'import_data': '📤 Import Data',
                   'clear_activities': '🗑️ Hapus Semua Aktivitas',
                   'reset_all': '💣 Reset Database'
                 };
@@ -764,7 +769,9 @@ export default function AdminView() {
                       <span style={{ 
                         fontWeight: 700, 
                         fontSize: 'var(--font-size-base)',
-                        color: log.actor?.type === 'admin' ? 'var(--color-danger)' : 'var(--color-primary)'
+                        color: log.actor?.type === 'admin' ? 'var(--color-danger)' : 
+                               log.actor?.type === 'guru' ? 'var(--color-primary)' : 
+                               'var(--color-primary)'
                       }}>
                         {getActionLabel(log.action)}
                       </span>
@@ -838,6 +845,46 @@ export default function AdminView() {
                       <div>
                         <strong>Data Dihapus:</strong> {log.details?.deletedStudentsCount || 0} siswa, 
                         {' '}{log.details?.deletedActivitiesCount || 0} aktivitas
+                      </div>
+                    )}
+                    {log.action === 'export_data' && (
+                      <div>
+                        <strong>Format:</strong> {log.details?.format || 'Tidak diketahui'}
+                        <br />
+                        <strong>Mode:</strong> {log.details?.mode === 'single' ? 'Tanggal yang dipilih' : 
+                                               log.details?.mode === 'range' ? 'Rentang tanggal' : 
+                                               log.details?.mode === 'all' ? 'Keseluruhan' : log.details?.mode}
+                        <br />
+                        <strong>Rentang Tanggal:</strong> {log.details?.dateRange || 'Tidak diketahui'}
+                        <br />
+                        <strong>Total Tanggal:</strong> {log.details?.totalDates || 0} tanggal
+                        <br />
+                        <span style={{ color: 'var(--color-text-light)' }}>
+                          {log.details?.description || ''}
+                        </span>
+                      </div>
+                    )}
+                    {log.action === 'import_data' && (
+                      <div>
+                        <strong>File:</strong> {log.details?.fileName || 'Tidak diketahui'}
+                        <br />
+                        <strong>Format:</strong> {log.details?.fileType || 'Tidak diketahui'}
+                        <br />
+                        <strong>Mode:</strong> {log.details?.importMode === 'single' ? 'Satu tanggal' : 
+                                               log.details?.importMode === 'bulk' ? 'Keseluruhan tanggal' : 
+                                               log.details?.importMode}
+                        <br />
+                        <strong>Rentang Tanggal:</strong> {log.details?.dateRange || 'Tidak diketahui'}
+                        <br />
+                        <strong>Total Baris:</strong> {log.details?.totalRows || 0} baris
+                        <br />
+                        <strong>Aktivitas Diimport:</strong> {log.details?.importedActivities || 0} aktivitas
+                        <br />
+                        <strong>Jumlah Tanggal:</strong> {log.details?.uniqueDates || 0} tanggal
+                        <br />
+                        <span style={{ color: 'var(--color-text-light)' }}>
+                          {log.details?.description || ''}
+                        </span>
                       </div>
                     )}
                   </div>

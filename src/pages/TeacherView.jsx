@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { db, activitiesCol, studentsCol } from '../services/firebase';
+import { db, activitiesCol, studentsCol, logActivity } from '../services/firebase';
 import { getDocs, query, where, onSnapshot, addDoc, updateDoc, doc, writeBatch } from 'firebase/firestore';
 import { Link } from 'react-router-dom';
 import * as XLSX from 'xlsx';
@@ -128,40 +128,70 @@ export default function TeacherView() {
   async function handleExport(format) {
     setShowExportModal(false);
     
-    if (exportMode === 'single') {
-      if (format === 'csv') {
-        exportToCSV([date]);
-      } else {
-        exportToXLSX([date]);
+    let datesToExport = [];
+    let exportModeLabel = '';
+    let exportResult = null;
+    
+    try {
+      if (exportMode === 'single') {
+        datesToExport = [date];
+        exportModeLabel = 'tanggal yang dipilih';
+        if (format === 'csv') {
+          exportResult = await exportToCSV(datesToExport);
+        } else {
+          exportResult = await exportToXLSX(datesToExport);
+        }
+      } else if (exportMode === 'range') {
+        if (!exportDateFrom || !exportDateTo) {
+          alert('❌ Harap isi tanggal Dari dan Sampai');
+          return;
+        }
+        if (exportDateFrom > exportDateTo) {
+          alert('❌ Tanggal Dari harus lebih kecil dari tanggal Sampai');
+          return;
+        }
+        datesToExport = generateDateRange(exportDateFrom, exportDateTo);
+        exportModeLabel = `rentang ${exportDateFrom} sampai ${exportDateTo}`;
+        if (format === 'csv') {
+          exportResult = await exportToCSV(datesToExport);
+        } else {
+          exportResult = await exportToXLSX(datesToExport);
+        }
+      } else if (exportMode === 'all') {
+        // Fetch semua tanggal yang ada di database
+        const allActivitiesSnap = await getDocs(activitiesCol);
+        datesToExport = [...new Set(allActivitiesSnap.docs.map(d => d.data().date))].sort();
+        if (datesToExport.length === 0) {
+          alert('❌ Tidak ada data untuk diekspor');
+          return;
+        }
+        exportModeLabel = 'keseluruhan';
+        if (format === 'csv') {
+          exportResult = await exportToCSV(datesToExport);
+        } else {
+          exportResult = await exportToXLSX(datesToExport);
+        }
       }
-    } else if (exportMode === 'range') {
-      if (!exportDateFrom || !exportDateTo) {
-        alert('❌ Harap isi tanggal Dari dan Sampai');
-        return;
+
+      // Log export activity setelah file berhasil dibuat
+      if (exportResult) {
+        await logActivity('export_data', { 
+          type: 'guru', 
+          name: 'Guru' 
+        }, {
+          format: format.toUpperCase(),
+          mode: exportMode,
+          dateRange: exportMode === 'single' ? datesToExport[0] : 
+                     exportMode === 'range' ? `${exportDateFrom} - ${exportDateTo}` : 
+                     'all',
+          totalDates: datesToExport.length,
+          totalRows: exportResult.totalRows,
+          filename: exportResult.filename,
+          description: `Export ${format.toUpperCase()} untuk ${exportModeLabel} - ${exportResult.totalRows} baris data`
+        });
       }
-      if (exportDateFrom > exportDateTo) {
-        alert('❌ Tanggal Dari harus lebih kecil dari tanggal Sampai');
-        return;
-      }
-      const dates = generateDateRange(exportDateFrom, exportDateTo);
-      if (format === 'csv') {
-        exportToCSV(dates);
-      } else {
-        exportToXLSX(dates);
-      }
-    } else if (exportMode === 'all') {
-      // Fetch semua tanggal yang ada di database
-      const allActivitiesSnap = await getDocs(activitiesCol);
-      const allDates = [...new Set(allActivitiesSnap.docs.map(d => d.data().date))].sort();
-      if (allDates.length === 0) {
-        alert('❌ Tidak ada data untuk diekspor');
-        return;
-      }
-      if (format === 'csv') {
-        exportToCSV(allDates);
-      } else {
-        exportToXLSX(allDates);
-      }
+    } catch (error) {
+      console.error('Error during export:', error);
     }
   }
 
@@ -255,6 +285,9 @@ export default function TeacherView() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    
+    // Return info untuk logging
+    return { filename, totalRows: rows.length, totalDates: dates.length };
   }
 
   async function exportToXLSX(dates) {
@@ -331,6 +364,9 @@ export default function TeacherView() {
       : `kegiatan-ramadhan-${dates[0]}-${dates[dates.length-1]}.xlsx`;
 
     XLSX.writeFile(wb, filename);
+    
+    // Return info untuk logging
+    return { filename, totalRows: rows.length, totalDates: dates.length };
   }
 
   // Import functions
@@ -461,6 +497,23 @@ export default function TeacherView() {
 
       if (opCount > 0) await batch.commit();
       const dateInfo = importMode === 'bulk' ? ` (${uniqueDates.length} tanggal)` : '';
+      
+      // Log import activity
+      await logActivity('import_data', { 
+        type: 'guru', 
+        name: 'Guru' 
+      }, {
+        fileName: file.name,
+        fileType: file.name.endsWith('.xlsx') || file.name.endsWith('.xls') ? 'Excel' : 'CSV',
+        importMode: importMode,
+        dateRange: importMode === 'single' ? date : 
+                   importMode === 'bulk' ? (bulkDateFrom && bulkDateTo ? `${bulkDateFrom} - ${bulkDateTo}` : 'all dates in file') : '',
+        totalRows: activitiesToImport.length,
+        importedActivities: importedCount,
+        uniqueDates: uniqueDates.length,
+        description: `Import ${file.name} - ${importMode === 'single' ? `tanggal ${date}` : `${uniqueDates.length} tanggal`}`
+      });
+      
       alert(`✅ Berhasil mengimport ${importedCount} aktivitas${dateInfo}!`);
       setShowImportModal(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
