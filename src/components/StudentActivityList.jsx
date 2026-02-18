@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { db, activitiesCol, studentsCol } from '../services/firebase';
+import { db, activitiesCol, studentsCol, logActivity } from '../services/firebase';
 import { getDoc, doc, addDoc, updateDoc, query, where, getDocs, onSnapshot } from 'firebase/firestore';
 import '../styles/student.css';
 
@@ -38,19 +38,44 @@ export default function StudentActivityList({ studentId, onLogout }) {
     const existing = activities.find(a => a.type === type);
     try {
       if (existing) {
+        const oldStatus = existing.status;
         const newStatus = existing.status === 'done' ? 'pending' : 'done';
         const updates = { status: newStatus };
         if (newStatus === 'pending') updates.note = '';
         
         const activityRef = doc(db, 'activities', existing.id);
         await updateDoc(activityRef, updates);
+        
+        await logActivity('toggle_activity', { 
+          type: 'student', 
+          id: studentId, 
+          name: studentName 
+        }, {
+          activityId: existing.id,
+          activityType: type,
+          oldStatus,
+          newStatus,
+          date: today
+        });
       } else {
-        await addDoc(activitiesCol, {
+        const docRef = await addDoc(activitiesCol, {
           studentId,
           date: today,
           type,
           status: 'done',
           note: ''
+        });
+        
+        await logActivity('toggle_activity', { 
+          type: 'student', 
+          id: studentId, 
+          name: studentName 
+        }, {
+          activityId: docRef.id,
+          activityType: type,
+          status: 'done',
+          date: today,
+          action: 'created'
         });
       }
     } catch (error) {
@@ -61,9 +86,25 @@ export default function StudentActivityList({ studentId, onLogout }) {
   async function updateNote(type, note) {
     const existing = activities.find(a => a.type === type);
     if (existing) {
+      const oldNote = existing.note || '';
       // Debounce could be added here, but for simplicity direct update
       const activityRef = doc(db, 'activities', existing.id);
       await updateDoc(activityRef, { note });
+      
+      // Log hanya jika note berubah (untuk menghindari spam)
+      if (oldNote !== note) {
+        await logActivity('update_note', { 
+          type: 'student', 
+          id: studentId, 
+          name: studentName 
+        }, {
+          activityId: existing.id,
+          activityType: type,
+          oldNote,
+          newNote: note,
+          date: today
+        });
+      }
     }
   }
 

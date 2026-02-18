@@ -1,6 +1,6 @@
 // Import the functions you need from the SDKs you need
 import { initializeApp } from "firebase/app";
-import { getFirestore, collection, getDocs, doc, setDoc, query, enableIndexedDbPersistence } from "firebase/firestore";
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, CACHE_SIZE_UNLIMITED, collection, getDocs, doc, setDoc, query, addDoc, serverTimestamp } from "firebase/firestore";
 import { getAnalytics } from "firebase/analytics";
 
 // Firebase configuration from environment variables
@@ -17,22 +17,19 @@ const firebaseConfig = {
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 const analytics = getAnalytics(app);
-export const db = getFirestore(app);
 
-// Enable Offline Persistence
-enableIndexedDbPersistence(db).catch((err) => {
-  if (err.code == 'failed-precondition') {
-    // Multiple tabs open, persistence can only be enabled in one tab at a a time.
-    // ...
-  } else if (err.code == 'unimplemented') {
-    // The current browser does not support all of the features required to enable persistence
-    // ...
-  }
+// Initialize Firestore with persistent cache (replaces enableIndexedDbPersistence)
+export const db = initializeFirestore(app, {
+  localCache: persistentLocalCache({
+    tabManager: persistentMultipleTabManager(),
+    cacheSizeBytes: CACHE_SIZE_UNLIMITED,
+  }),
 });
 
 // Collection References
 export const studentsCol = collection(db, 'students');
 export const activitiesCol = collection(db, 'activities');
+export const logsCol = collection(db, 'logs');
 
 // Helper to seed initial data (only run once if empty)
 export const seedInitialData = async () => {
@@ -75,5 +72,24 @@ export const seedInitialData = async () => {
     
     await Promise.all(promises);
     console.log("Initial students data seeded to Firestore!");
+  }
+};
+
+// Logging function untuk tracking semua aktivitas
+export const logActivity = async (action, actor, details = {}) => {
+  try {
+    const logData = {
+      action, // 'create_student', 'update_student', 'delete_student', 'toggle_activity', 'update_note', 'clear_activities', 'reset_all'
+      actor, // { type: 'student' | 'admin', id?: string, name: string }
+      details, // detail aktivitas yang dilakukan
+      timestamp: serverTimestamp(),
+      date: new Date().toLocaleDateString('en-CA'), // untuk filtering per hari
+      userAgent: navigator.userAgent,
+    };
+    
+    await addDoc(logsCol, logData);
+  } catch (error) {
+    console.error("Error logging activity:", error);
+    // Jangan throw error agar tidak mengganggu flow utama
   }
 };

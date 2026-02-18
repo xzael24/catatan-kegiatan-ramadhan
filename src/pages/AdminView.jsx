@@ -1,17 +1,20 @@
 import { useState, useEffect, useMemo } from 'react';
-import { db, studentsCol, activitiesCol } from '../services/firebase';
-import { getDocs, query, orderBy, addDoc, updateDoc, deleteDoc, doc, writeBatch, orderBy as orderByFs, collection } from 'firebase/firestore';
+import { db, studentsCol, activitiesCol, logsCol, logActivity } from '../services/firebase';
+import { getDocs, query, orderBy, addDoc, updateDoc, deleteDoc, doc, writeBatch, orderBy as orderByFs, collection, limit } from 'firebase/firestore';
 import { Link } from 'react-router-dom';
 import '../styles/admin.css';
 
 export default function AdminView() {
   const [students, setStudents] = useState([]);
   const [activities, setActivities] = useState([]);
+  const [logs, setLogs] = useState([]);
   const [activeTab, setActiveTab] = useState('students');
   const [searchQuery, setSearchQuery] = useState('');
   const [toast, setToast] = useState(null);
   const [modal, setModal] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [logFilter, setLogFilter] = useState('all'); // 'all', 'student', 'admin'
+  const [logActionFilter, setLogActionFilter] = useState('all');
 
   // Form state
   const [formMode, setFormMode] = useState(null); // 'add' | 'edit'
@@ -37,6 +40,11 @@ export default function AdminView() {
       const aSnap = await getDocs(activitiesCol);
       const aList = aSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setActivities(aList);
+
+      // Load Logs (latest 500)
+      if (activeTab === 'logging') {
+        await loadLogs();
+      }
     } catch (err) {
       console.error(err);
       showToast('❌ Gagal memuat data');
@@ -44,6 +52,67 @@ export default function AdminView() {
       setLoading(false);
     }
   }
+
+  async function loadLogs() {
+    try {
+      const q = query(logsCol, orderBy('timestamp', 'desc'), limit(500));
+      const logsSnap = await getDocs(q);
+      const logsList = logsSnap.docs.map(doc => {
+        const data = doc.data();
+        let timestamp = new Date();
+        if (data.timestamp) {
+          if (data.timestamp.toDate && typeof data.timestamp.toDate === 'function') {
+            timestamp = data.timestamp.toDate();
+          } else if (data.timestamp.seconds) {
+            timestamp = new Date(data.timestamp.seconds * 1000);
+          } else if (data.timestamp instanceof Date) {
+            timestamp = data.timestamp;
+          }
+        }
+        return { 
+          id: doc.id, 
+          ...data,
+          timestamp
+        };
+      });
+      setLogs(logsList);
+    } catch (err) {
+      console.error("Error loading logs:", err);
+      // Jika orderBy timestamp gagal (belum ada index), coba tanpa orderBy
+      try {
+        const logsSnap = await getDocs(logsCol);
+        const logsList = logsSnap.docs.map(doc => {
+          const data = doc.data();
+          let timestamp = new Date();
+          if (data.timestamp) {
+            if (data.timestamp.toDate && typeof data.timestamp.toDate === 'function') {
+              timestamp = data.timestamp.toDate();
+            } else if (data.timestamp.seconds) {
+              timestamp = new Date(data.timestamp.seconds * 1000);
+            } else if (data.timestamp instanceof Date) {
+              timestamp = data.timestamp;
+            }
+          }
+          return { 
+            id: doc.id, 
+            ...data,
+            timestamp
+          };
+        });
+        // Sort manually by timestamp
+        logsList.sort((a, b) => b.timestamp - a.timestamp);
+        setLogs(logsList.slice(0, 500));
+      } catch (err2) {
+        console.error("Error loading logs (fallback):", err2);
+      }
+    }
+  }
+
+  useEffect(() => {
+    if (activeTab === 'logging') {
+      loadLogs();
+    }
+  }, [activeTab]);
 
   function showToast(msg) {
     setToast(msg);
@@ -81,11 +150,22 @@ export default function AdminView() {
       const data = { name: formName.trim(), class: formClass.trim().toUpperCase() };
       
       if (formMode === 'add') {
-        await addDoc(studentsCol, data);
+        const docRef = await addDoc(studentsCol, data);
+        await logActivity('create_student', { type: 'admin', name: 'Admin' }, {
+          studentId: docRef.id,
+          studentName: data.name,
+          studentClass: data.class
+        });
         showToast('✅ Siswa berhasil ditambahkan!');
       } else {
+        const oldStudent = students.find(s => s.id === editingId);
         const studentRef = doc(db, 'students', editingId);
         await updateDoc(studentRef, data);
+        await logActivity('update_student', { type: 'admin', name: 'Admin' }, {
+          studentId: editingId,
+          oldData: { name: oldStudent?.name, class: oldStudent?.class },
+          newData: { name: data.name, class: data.class }
+        });
         showToast('✅ Data siswa berhasil diperbarui!');
       }
       cancelForm();
@@ -125,6 +205,13 @@ export default function AdminView() {
           });
           await batch.commit();
 
+          await logActivity('delete_student', { type: 'admin', name: 'Admin' }, {
+            studentId: student.id,
+            studentName: student.name,
+            studentClass: student.class,
+            deletedActivitiesCount: studentActivities.length
+          });
+
           setModal(null);
           showToast('🗑️ Siswa berhasil dihapus');
           loadData();
@@ -150,6 +237,7 @@ export default function AdminView() {
         setLoading(true);
         try {
           const snapshot = await getDocs(activitiesCol);
+          const totalCount = snapshot.docs.length;
           // Delete in batches (limit 500 per batch)
           const batch = writeBatch(db);
           let count = 0;
@@ -180,6 +268,10 @@ export default function AdminView() {
              }
           }
           
+          await logActivity('clear_activities', { type: 'admin', name: 'Admin' }, {
+            deletedCount: totalCount
+          });
+          
           setModal(null);
           showToast('🗑️ Semua data aktivitas berhasil dihapus');
           loadData();
@@ -205,14 +297,21 @@ export default function AdminView() {
         try {
           // Delete students
           const sSnap = await getDocs(studentsCol);
+          const studentsCount = sSnap.docs.length;
           const batch = writeBatch(db);
           sSnap.forEach(d => batch.delete(d.ref));
           
           // Delete activities
           const aSnap = await getDocs(activitiesCol);
+          const activitiesCount = aSnap.docs.length;
           aSnap.forEach(d => batch.delete(d.ref));
           
           await batch.commit();
+
+          await logActivity('reset_all', { type: 'admin', name: 'Admin' }, {
+            deletedStudentsCount: studentsCount,
+            deletedActivitiesCount: activitiesCount
+          });
 
           setModal(null);
           showToast('🔄 Database telah di-reset.');
@@ -236,6 +335,21 @@ export default function AdminView() {
     );
   }, [students, searchQuery]);
 
+  // ---- Filtered logs ----
+  const filteredLogs = useMemo(() => {
+    let filtered = logs;
+    
+    if (logFilter !== 'all') {
+      filtered = filtered.filter(log => log.actor?.type === logFilter);
+    }
+    
+    if (logActionFilter !== 'all') {
+      filtered = filtered.filter(log => log.action === logActionFilter);
+    }
+    
+    return filtered;
+  }, [logs, logFilter, logActionFilter]);
+
   // ---- Stats ----
   const stats = useMemo(() => {
     const totalStudents = students.length;
@@ -252,6 +366,7 @@ export default function AdminView() {
   const tabs = [
     { id: 'students', label: '👤 Kelola Siswa' },
     { id: 'data', label: '📊 Data & Reset' },
+    { id: 'logging', label: '📝 Logging' },
     { id: 'info', label: 'ℹ️ Info Aplikasi' },
   ];
 
@@ -459,6 +574,225 @@ export default function AdminView() {
                 </button>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* ============ LOGGING TAB ============ */}
+        {activeTab === 'logging' && (
+          <div className="admin-panel">
+            <div className="admin-panel-header">
+              <h2 className="admin-panel-title">📝 Log Aktivitas ({filteredLogs.length} dari {logs.length})</h2>
+              <button className="btn btn--outline" onClick={loadLogs} disabled={loading}>
+                🔄 Refresh
+              </button>
+            </div>
+
+            {/* Filters */}
+            <div style={{ 
+              display: 'flex', 
+              gap: 'var(--spacing-md)', 
+              marginBottom: 'var(--spacing-lg)',
+              flexWrap: 'wrap'
+            }}>
+              <div style={{ display: 'flex', gap: 'var(--spacing-sm)', alignItems: 'center' }}>
+                <label style={{ fontSize: 'var(--font-size-sm)', fontWeight: 600 }}>Filter Aktor:</label>
+                <select 
+                  className="form-input" 
+                  style={{ minWidth: '150px' }}
+                  value={logFilter}
+                  onChange={e => setLogFilter(e.target.value)}
+                >
+                  <option value="all">Semua</option>
+                  <option value="student">Siswa</option>
+                  <option value="admin">Admin</option>
+                </select>
+              </div>
+              <div style={{ display: 'flex', gap: 'var(--spacing-sm)', alignItems: 'center' }}>
+                <label style={{ fontSize: 'var(--font-size-sm)', fontWeight: 600 }}>Filter Aksi:</label>
+                <select 
+                  className="form-input" 
+                  style={{ minWidth: '200px' }}
+                  value={logActionFilter}
+                  onChange={e => setLogActionFilter(e.target.value)}
+                >
+                  <option value="all">Semua Aksi</option>
+                  <option value="create_student">Tambah Siswa</option>
+                  <option value="update_student">Update Siswa</option>
+                  <option value="delete_student">Hapus Siswa</option>
+                  <option value="toggle_activity">Toggle Aktivitas</option>
+                  <option value="update_note">Update Catatan</option>
+                  <option value="clear_activities">Hapus Semua Aktivitas</option>
+                  <option value="reset_all">Reset Database</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Filtered Logs */}
+            {filteredLogs.map((log, index) => {
+              const getActionLabel = (action) => {
+                const labels = {
+                  'create_student': '➕ Tambah Siswa',
+                  'update_student': '✏️ Update Siswa',
+                  'delete_student': '🗑️ Hapus Siswa',
+                  'toggle_activity': '✅ Toggle Aktivitas',
+                  'update_note': '📝 Update Catatan',
+                  'clear_activities': '🗑️ Hapus Semua Aktivitas',
+                  'reset_all': '💣 Reset Database'
+                };
+                return labels[action] || action;
+              };
+
+              const getActivityTypeLabel = (type) => {
+                const labels = {
+                  'puasa': '🍽️ Puasa',
+                  'sholat_subuh': '🌅 Sholat Subuh',
+                  'sholat_zuhur': '☀️ Sholat Zuhur',
+                  'sholat_ashar': '⛅ Sholat Ashar',
+                  'sholat_maghrib': '🌇 Sholat Maghrib',
+                  'sholat_isya': '🌙 Sholat Isya',
+                  'tadarus': '📖 Tadarus',
+                  'sholat_tarawih': '✨ Sholat Tarawih'
+                };
+                return labels[type] || type;
+              };
+
+              const formatTimestamp = (timestamp) => {
+                if (!timestamp) return 'Tidak diketahui';
+                try {
+                  let date;
+                  if (timestamp instanceof Date) {
+                    date = timestamp;
+                  } else if (timestamp.toDate && typeof timestamp.toDate === 'function') {
+                    date = timestamp.toDate();
+                  } else if (timestamp.seconds) {
+                    date = new Date(timestamp.seconds * 1000);
+                  } else {
+                    date = new Date(timestamp);
+                  }
+                  return date.toLocaleString('id-ID', {
+                    day: '2-digit',
+                    month: 'short',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit'
+                  });
+                } catch (e) {
+                  return 'Format tidak valid';
+                }
+              };
+
+              return (
+                <div 
+                  key={log.id} 
+                  style={{
+                    background: 'var(--color-bg)',
+                    borderRadius: 'var(--radius-md)',
+                    padding: 'var(--spacing-md)',
+                    marginBottom: 'var(--spacing-sm)',
+                    border: '1px solid var(--color-border)',
+                    fontSize: 'var(--font-size-sm)'
+                  }}
+                >
+                  <div style={{ 
+                    display: 'flex', 
+                    justifyContent: 'space-between', 
+                    alignItems: 'flex-start',
+                    marginBottom: 'var(--spacing-xs)'
+                  }}>
+                    <div>
+                      <span style={{ 
+                        fontWeight: 700, 
+                        fontSize: 'var(--font-size-base)',
+                        color: log.actor?.type === 'admin' ? 'var(--color-danger)' : 'var(--color-primary)'
+                      }}>
+                        {getActionLabel(log.action)}
+                      </span>
+                      <span style={{ marginLeft: 'var(--spacing-sm)', color: 'var(--color-text-light)' }}>
+                        oleh <strong>{log.actor?.name || 'Tidak diketahui'}</strong>
+                      </span>
+                    </div>
+                    <span style={{ color: 'var(--color-text-light)', fontSize: 'var(--font-size-xs)' }}>
+                      {formatTimestamp(log.timestamp)}
+                    </span>
+                  </div>
+                  
+                  {/* Details */}
+                  <div style={{ 
+                    marginTop: 'var(--spacing-sm)', 
+                    padding: 'var(--spacing-sm)',
+                    background: 'rgba(0,0,0,0.02)',
+                    borderRadius: 'var(--radius-sm)',
+                    fontSize: 'var(--font-size-xs)'
+                  }}>
+                    {log.action === 'create_student' && (
+                      <div>
+                        <strong>Siswa Baru:</strong> {log.details?.studentName} (Kelas {log.details?.studentClass})
+                        <br />
+                        <span style={{ color: 'var(--color-text-light)' }}>ID: {log.details?.studentId}</span>
+                      </div>
+                    )}
+                    {log.action === 'update_student' && (
+                      <div>
+                        <strong>Siswa:</strong> {log.details?.studentId}
+                        <br />
+                        <strong>Perubahan:</strong> {log.details?.oldData?.name} ({log.details?.oldData?.class}) 
+                        → {log.details?.newData?.name} ({log.details?.newData?.class})
+                      </div>
+                    )}
+                    {log.action === 'delete_student' && (
+                      <div>
+                        <strong>Siswa Dihapus:</strong> {log.details?.studentName} (Kelas {log.details?.studentClass})
+                        <br />
+                        <span style={{ color: 'var(--color-text-light)' }}>
+                          {log.details?.deletedActivitiesCount || 0} aktivitas juga dihapus
+                        </span>
+                      </div>
+                    )}
+                    {log.action === 'toggle_activity' && (
+                      <div>
+                        <strong>Aktivitas:</strong> {getActivityTypeLabel(log.details?.activityType)}
+                        <br />
+                        <strong>Status:</strong> {log.details?.oldStatus || 'belum ada'} → {log.details?.newStatus || log.details?.status}
+                        <br />
+                        <span style={{ color: 'var(--color-text-light)' }}>
+                          Tanggal: {log.details?.date || log.date}
+                        </span>
+                      </div>
+                    )}
+                    {log.action === 'update_note' && (
+                      <div>
+                        <strong>Aktivitas:</strong> {getActivityTypeLabel(log.details?.activityType)}
+                        <br />
+                        <strong>Catatan Lama:</strong> {log.details?.oldNote || '(kosong)'}
+                        <br />
+                        <strong>Catatan Baru:</strong> {log.details?.newNote || '(kosong)'}
+                      </div>
+                    )}
+                    {log.action === 'clear_activities' && (
+                      <div>
+                        <strong>Total Dihapus:</strong> {log.details?.deletedCount || 0} aktivitas
+                      </div>
+                    )}
+                    {log.action === 'reset_all' && (
+                      <div>
+                        <strong>Data Dihapus:</strong> {log.details?.deletedStudentsCount || 0} siswa, 
+                        {' '}{log.details?.deletedActivitiesCount || 0} aktivitas
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+
+            {filteredLogs.length === 0 && !loading && (
+              <div className="empty-state">
+                <span className="empty-state-icon">📝</span>
+                <div className="empty-state-text">
+                  {logs.length === 0 ? 'Belum ada log aktivitas' : 'Tidak ada log yang sesuai filter'}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
