@@ -326,6 +326,58 @@ export default function AdminView() {
     });
   }
 
+  function confirmDeleteAllLogs() {
+    setModal({
+      icon: '🗑️',
+      title: 'Hapus Semua Log?',
+      desc: `Semua log aktivitas (${logs.length} log) akan dihapus secara permanen. Tindakan ini tidak dapat dibatalkan!`,
+      confirmLabel: 'Hapus Semua Log',
+      confirmClass: 'btn--danger',
+      onConfirm: async () => {
+        setLoading(true);
+        try {
+          const snapshot = await getDocs(logsCol);
+          const totalCount = snapshot.docs.length;
+          
+          // Delete in batches (limit 500 per batch)
+          const batch = writeBatch(db);
+          let count = 0;
+          
+          for (const document of snapshot.docs) {
+            batch.delete(document.ref);
+            count++;
+            if (count >= 400) {
+              await batch.commit();
+              // Create new batch for remaining documents
+              const remaining = snapshot.docs.slice(count);
+              if (remaining.length > 0) {
+                const batch2 = writeBatch(db);
+                remaining.forEach(d => batch2.delete(d.ref));
+                await batch2.commit();
+              }
+              break;
+            }
+          }
+          
+          if (count > 0 && count < 400) {
+            await batch.commit();
+          }
+          
+          setModal(null);
+          showToast(`🗑️ ${totalCount} log berhasil dihapus`);
+          setLogs([]);
+          setLogFilter('all');
+          setLogActionFilter('all');
+        } catch (err) {
+          console.error(err);
+          showToast('❌ Gagal menghapus log');
+        } finally {
+          setLoading(false);
+        }
+      }
+    });
+  }
+
   // ---- Filtered students ----
   const filteredStudents = useMemo(() => {
     if (!searchQuery.trim()) return students;
@@ -582,9 +634,16 @@ export default function AdminView() {
           <div className="admin-panel">
             <div className="admin-panel-header">
               <h2 className="admin-panel-title">📝 Log Aktivitas ({filteredLogs.length} dari {logs.length})</h2>
-              <button className="btn btn--outline" onClick={loadLogs} disabled={loading}>
-                🔄 Refresh
-              </button>
+              <div style={{ display: 'flex', gap: 'var(--spacing-sm)' }}>
+                <button className="btn btn--outline" onClick={loadLogs} disabled={loading}>
+                  🔄 Refresh
+                </button>
+                {logs.length > 0 && (
+                  <button className="btn btn--danger" onClick={confirmDeleteAllLogs} disabled={loading}>
+                    🗑️ Hapus Semua Log
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Filters */}
@@ -644,6 +703,7 @@ export default function AdminView() {
 
               const getActivityTypeLabel = (type) => {
                 const labels = {
+                  'sahur': '🌙 Sahur',
                   'puasa': '🍽️ Puasa',
                   'sholat_subuh': '🌅 Sholat Subuh',
                   'sholat_zuhur': '☀️ Sholat Zuhur',
@@ -804,7 +864,7 @@ export default function AdminView() {
             </h2>
 
             <div className="admin-form" style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: '3rem', marginBottom: 'var(--spacing-sm)' }}>🔥</div>
+              <div style={{ fontSize: '3rem', marginBottom: 'var(--spacing-sm)' }}>🌙</div>
               <h3 style={{
                 fontFamily: 'var(--font-family-heading)',
                 fontSize: 'var(--font-size-xl)',
@@ -814,7 +874,7 @@ export default function AdminView() {
                 Ramadhan App Anak Sholeh
               </h3>
               <p style={{ color: 'var(--color-text-light)', marginBottom: 'var(--spacing-lg)', fontSize: 'var(--font-size-sm)' }}>
-                Powered by Firebase Firestore (Realtime)
+                Aplikasi Tracking Ibadah Ramadhan untuk Anak SD
               </p>
 
               <div style={{ textAlign: 'left' }}>
@@ -825,7 +885,7 @@ export default function AdminView() {
                   marginBottom: 'var(--spacing-sm)',
                   fontSize: 'var(--font-size-sm)'
                 }}>
-                  <strong>Versi:</strong> 2.0.0 (Cloud Sync)
+                  <strong>📱 Versi:</strong> 2.1.0 (Update: Tambah Kegiatan Sahur)
                 </div>
                 <div style={{
                   padding: 'var(--spacing-md)',
@@ -834,7 +894,7 @@ export default function AdminView() {
                   marginBottom: 'var(--spacing-sm)',
                   fontSize: 'var(--font-size-sm)'
                 }}>
-                  <strong>Teknologi:</strong> React + Firebase Firestore
+                  <strong>🛠️ Teknologi:</strong> React 19 + Firebase Firestore + Vite
                 </div>
                 <div style={{
                   padding: 'var(--spacing-md)',
@@ -843,7 +903,42 @@ export default function AdminView() {
                   marginBottom: 'var(--spacing-sm)',
                   fontSize: 'var(--font-size-sm)'
                 }}>
-                  <strong>Sync:</strong> Realtime (Live Updates) ⚡
+                  <strong>⚡ Fitur Utama:</strong>
+                  <ul style={{ marginTop: 'var(--spacing-xs)', paddingLeft: '20px' }}>
+                    <li>Tracking 9 kegiatan ibadah (Sahur, Puasa, 5 Waktu Sholat, Tadarus, Tarawih)</li>
+                    <li>Realtime sync antar perangkat</li>
+                    <li>Export/Import data CSV & Excel</li>
+                    <li>Dashboard monitoring untuk guru</li>
+                    <li>Logging aktivitas lengkap</li>
+                    <li>Offline support dengan cache</li>
+                  </ul>
+                </div>
+                <div style={{
+                  padding: 'var(--spacing-md)',
+                  background: 'var(--color-bg)',
+                  borderRadius: 'var(--radius-md)',
+                  marginBottom: 'var(--spacing-sm)',
+                  fontSize: 'var(--font-size-sm)'
+                }}>
+                  <strong>📊 Database:</strong> Firebase Firestore (Cloud Database)
+                </div>
+                <div style={{
+                  padding: 'var(--spacing-md)',
+                  background: 'var(--color-bg)',
+                  borderRadius: 'var(--radius-md)',
+                  marginBottom: 'var(--spacing-sm)',
+                  fontSize: 'var(--font-size-sm)'
+                }}>
+                  <strong>🌐 Platform:</strong> Progressive Web App (PWA) - Bisa diinstall di mobile & desktop
+                </div>
+                <div style={{
+                  padding: 'var(--spacing-md)',
+                  background: 'var(--color-bg)',
+                  borderRadius: 'var(--radius-md)',
+                  marginBottom: 'var(--spacing-sm)',
+                  fontSize: 'var(--font-size-sm)'
+                }}>
+                  <strong>📝 Kegiatan yang Ditrack:</strong> Sahur 🌙, Puasa 🍽️, Sholat Subuh 🌅, Sholat Zuhur ☀️, Sholat Ashar ⛅, Sholat Maghrib 🌇, Sholat Isya 🌙, Tadarus 📖, Sholat Tarawih ✨
                 </div>
               </div>
             </div>

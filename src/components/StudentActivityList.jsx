@@ -160,6 +160,7 @@ export default function StudentActivityList({ studentId, onLogout }) {
   }
 
   const tasks = [
+    { id: 'sahur', label: 'Sahur', icon: '🌙', theme: 'ibadah' },
     { id: 'puasa', label: 'Puasa Hari Ini', icon: '🍽️', theme: 'ibadah' },
     { id: 'sholat_subuh', label: 'Sholat Subuh', icon: '🌅', theme: 'sholat' },
     { id: 'sholat_zuhur', label: 'Sholat Zuhur', icon: '☀️', theme: 'sholat' },
